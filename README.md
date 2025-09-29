@@ -13,8 +13,10 @@ A robust database layer built with PostgreSQL, SQLAlchemy ORM, Alembic migration
 ### 🔐 Security
 - **Field-level encryption** for sensitive data (API keys, secrets)
 - **Fernet encryption** with PBKDF2 key derivation
+- **bcrypt password hashing** with automatic salting (12 rounds)
+- **JWT authentication** with access and refresh tokens
 - **Audit logging** for all database operations
-- **Secure password hashing** support
+- **Token-based authentication** replacing session state
 
 ### 📊 Data Models
 - **Users** - Authentication and authorization
@@ -28,6 +30,8 @@ A robust database layer built with PostgreSQL, SQLAlchemy ORM, Alembic migration
 ### 🏗️ Architecture Patterns
 - **Repository Pattern** for clean data access
 - **Service Layer** for business logic
+- **JWT Authentication** with FastAPI dependencies
+- **Password Security** with bcrypt and rehashing
 - **Async/Await** throughout for high performance
 - **Type hints** for better code quality
 
@@ -42,6 +46,7 @@ pip install -r requirements.txt
 ```bash
 cp .env.example .env
 # Edit .env with your database credentials and encryption keys
+# Set JWT_SECRET_KEY to a secure random string
 ```
 
 ### 3. Initialize Database
@@ -64,6 +69,35 @@ alembic upgrade head
 
 ## Usage Examples
 
+### Authentication System
+```python
+from src.auth.service import AuthService
+from src.auth.models import LoginRequest, RegisterRequest
+
+async def auth_example():
+    async with get_db_session() as session:
+        auth_service = AuthService(session)
+        
+        # Register new user
+        register_data = RegisterRequest(
+            username="john_doe",
+            email="john@example.com",
+            password="secure_password_123",
+            confirm_password="secure_password_123"
+        )
+        user = await auth_service.register(register_data)
+        
+        # Login user
+        login_data = LoginRequest(
+            username="john_doe",
+            password="secure_password_123"
+        )
+        token = await auth_service.login(login_data)
+        
+        # Use access_token for authenticated requests
+        print(f"Access Token: {token.access_token}")
+```
+
 ### Basic Database Operations
 ```python
 from src.database.connection import get_db_session
@@ -74,10 +108,10 @@ async def example_usage():
         db_service = DatabaseService(session)
         
         # Create user
-        user = await db_service.create_user_with_audit(
+        user = await db_service.create_user_with_audit(  # Now uses bcrypt
             username="john_doe",
             email="john@example.com",
-            hashed_password="$2b$12$...",
+            password="secure_password_123",  # Will be hashed automatically
             ip_address="192.168.1.1"
         )
         
@@ -100,8 +134,14 @@ async def example_usage():
 
 ### Working with Encrypted Fields
 ```python
+from src.auth.password import PasswordManager
 from src.database.models import APIKey
 from src.database.encryption import encrypt_field, decrypt_field
+
+# Password hashing with bcrypt
+password_manager = PasswordManager()
+hashed = password_manager.hash_password("user_password")
+is_valid = password_manager.verify_password("user_password", hashed)
 
 # Manual encryption (usually handled automatically)
 encrypted_value = encrypt_field("my-secret-key")
@@ -150,6 +190,19 @@ async with get_db_session() as session:
 - All operations are logged in audit_logs
 
 ## Security Features
+
+### Password Security
+- **bcrypt hashing** with 12 rounds (configurable)
+- **Automatic salt generation** for each password
+- **Password rehashing** when security parameters change
+- **Secure password verification** with timing attack protection
+
+### JWT Authentication
+- **Access tokens** for API authentication (30 min default)
+- **Refresh tokens** for token renewal (7 days default)
+- **Token validation** with proper error handling
+- **User context** embedded in tokens
+- **Automatic token refresh** mechanism
 
 ### Encryption
 - **Fernet symmetric encryption** for field-level security
@@ -209,6 +262,12 @@ Tests cover:
 # Database
 DATABASE_URL=postgresql+asyncpg://user:pass@localhost:5432/ai_manage_ops
 DATABASE_DEBUG=false
+
+# JWT Authentication
+JWT_SECRET_KEY=your-jwt-secret-key-change-in-production
+JWT_ALGORITHM=HS256
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES=30
+JWT_REFRESH_TOKEN_EXPIRE_DAYS=7
 
 # Encryption
 ENCRYPTION_KEY=your-base64-fernet-key

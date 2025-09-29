@@ -7,12 +7,14 @@ from .repository import (
 )
 from .models import User, APIKey, Deployment, Infrastructure, Application
 from .connection import get_db_session
+from ..auth.password import PasswordManager
 
 class DatabaseService:
     """Main database service coordinating repositories."""
     
     def __init__(self, session: AsyncSession):
         self.session = session
+        self.password_manager = PasswordManager()
         self.users = UserRepository(session)
         self.api_keys = APIKeyRepository(session)
         self.deployments = DeploymentRepository(session)
@@ -21,8 +23,11 @@ class DatabaseService:
         self.applications = BaseRepository(session, Application)
     
     async def create_user_with_audit(self, username: str, email: str, 
-                                   hashed_password: str, ip_address: str = None) -> User:
+                                   password: str, ip_address: str = None) -> User:
         """Create user and log the action."""
+        # Hash password using bcrypt
+        hashed_password = self.password_manager.hash_password(password)
+        
         user = await self.users.create(
             username=username,
             email=email,

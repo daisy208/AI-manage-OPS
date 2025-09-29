@@ -9,17 +9,20 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from database.connection import init_db, get_db_session
 from database.service import DatabaseService
+from auth.password import PasswordManager
 
 async def create_sample_data():
     """Create sample data for development."""
     async with get_db_session() as session:
         db_service = DatabaseService(session)
+        password_manager = PasswordManager()
         
         # Create sample user
+        hashed_password = password_manager.hash_password("admin123")
         user = await db_service.create_user_with_audit(
             username="admin",
             email="admin@example.com",
-            hashed_password="$2b$12$sample_hashed_password",  # In real app, hash properly
+            password="admin123",  # Will be hashed automatically
             ip_address="127.0.0.1"
         )
         
